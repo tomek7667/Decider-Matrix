@@ -5,7 +5,9 @@
     clearMatrix,
     errorMessage,
     clone,
-    emptyMatrix
+    emptyMatrix,
+    user,
+    onMountHandler,
   } from "$lib";
   import DecisionTitle from "./DecisionTitle.svelte";
   import CriteriaField from "./CriteriaField.svelte";
@@ -14,14 +16,16 @@
   import ItemField from "./ItemField.svelte";
   import Manual from "./Manual.svelte";
   import { slide } from "svelte/transition";
+  import LoginButton from "./LoginButton.svelte";
+  import RegisterButton from "./RegisterButton.svelte";
+  import LogoutButton from "./LogoutButton.svelte";
+  import YourDecisionsButton from "./YourDecisionsButton.svelte";
+  import SaveButton from "./SaveButton.svelte";
+  import ClearMatrixButton from "./ClearMatrixButton.svelte";
+  import ExportMatrixButton from "./ExportMatrixButton.svelte";
+  import ImportMatrixButton from "./ImportMatrixButton.svelte";
 
   let isEditingVisible = true;
-
-  const subscribe = () => {
-    decisionMatrix.subscribe((matrix) => {
-      window.localStorage.setItem("decisionMatrix", JSON.stringify(matrix));
-    });
-  };
 
   const addCriteria = () => {
     decisionMatrix.update((matrix) => {
@@ -37,58 +41,14 @@
     decisionMatrix.update((matrix) => {
       matrix.items.push({
         name: "",
-        criterias: clone(matrix.criterias)
+        criterias: clone(matrix.criterias),
       });
       return matrix;
     });
   };
 
-  const exportMatrixHandler = () => {
-    const contents = JSON.stringify($decisionMatrix, null, 4);
-    const link = document.createElement("a");
-    const jsonContents = `data:text/json;charset=utf-8,${contents}`;
-    const encodedUri = encodeURI(jsonContents);
-    link.setAttribute("href", encodedUri);
-    const filename = `${$decisionMatrix.name}_${Date.now()}.json`;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
-  const importMatrixHandler = () => {
-    const input = document.createElement("input");
-    input.setAttribute("type", "file");
-    input.setAttribute("accept", ".json");
-    input.addEventListener("change", (event: any) => {
-      const file = event.target.files[0];
-      if (!file) {
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event: any) => {
-        const contents = event.target.result;
-        if (!contents) {
-          return;
-        }
-        const matrix = JSON.parse(contents);
-        decisionMatrix.set(matrix);
-      };
-      reader.readAsText(file);
-    });
-    document.body.appendChild(input);
-    input.click();
-    input.remove();
-  };
-
   onMount(() => {
-    const _decisionMatrix = window.localStorage.getItem("decisionMatrix");
-    if (_decisionMatrix) {
-      decisionMatrix.set(JSON.parse(_decisionMatrix));
-    } else {
-      clearMatrix();
-    }
-    subscribe();
+    onMountHandler();
   });
 
   $: (() => {
@@ -139,17 +99,21 @@
     <p class="title">Decider Matrix</p>
     <p class="subtitle">Helps you on deciding on important life decisions</p>
     <div class="buttons">
-      {#if JSON.stringify($decisionMatrix) !== JSON.stringify(emptyMatrix)}
-        <button class="button is-danger" on:click={clearMatrix}>
-          Clear matrix
-        </button>
-        <button class="button is-success" on:click={exportMatrixHandler}
-          >Export</button
-        >
+      {#if $user === null}
+        <LoginButton />
+        <RegisterButton />
+      {:else}
+        <LogoutButton />
+        <YourDecisionsButton />
       {/if}
-      <button class="button is-warning" on:click={importMatrixHandler}
-        >Import</button
-      >
+    </div>
+    <div class="buttons">
+      {#if JSON.stringify($decisionMatrix) !== JSON.stringify(emptyMatrix)}
+        <SaveButton />
+        <ClearMatrixButton />
+        <ExportMatrixButton />
+      {/if}
+      <ImportMatrixButton />
     </div>
     <Manual />
     <hr />
@@ -179,11 +143,13 @@
         </div>
       </div>
     {/if}
+    <br />
     <button
       class="button"
       on:click={() => (isEditingVisible = !isEditingVisible)}
       >{isEditingVisible ? "Hide" : "Show"} editing area</button
     >
+    <SaveButton />
     <hr />
     <div id="results">
       {#if $errorMessage !== ""}

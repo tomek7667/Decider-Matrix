@@ -26,7 +26,7 @@
           Math.round((nominator / criterias.length) * 10000) / 10000;
         return {
           name,
-          total
+          total,
         };
       })
       .sort((a, b) => b.total - a.total);
