@@ -24,6 +24,7 @@
   import ClearMatrixButton from "./ClearMatrixButton.svelte";
   import ExportMatrixButton from "./ExportMatrixButton.svelte";
   import ImportMatrixButton from "./ImportMatrixButton.svelte";
+  import ChatsButton from "./ChatsButton.svelte";
 
   let isEditingVisible = true;
 
@@ -105,6 +106,7 @@
       {:else}
         <LogoutButton />
         <YourDecisionsButton />
+        <ChatsButton />
       {/if}
     </div>
     <div class="buttons">

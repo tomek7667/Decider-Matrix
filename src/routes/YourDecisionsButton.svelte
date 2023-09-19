@@ -6,6 +6,6 @@
   };
 </script>
 
-<button class="button is-link" on:click={yourDecisionsButtonHandler}
+<button class="button" on:click={yourDecisionsButtonHandler}
   >Your decisions</button
 >
