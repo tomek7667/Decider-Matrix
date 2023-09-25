@@ -1,6 +1,14 @@
 <script lang="ts">
   import GoBackButton from "$lib/GoBackButton.svelte";
-  import { deserializeUser, onMountHandler, pb, user } from "$lib";
+  import {
+    createKey,
+    deserializeUser,
+    hexlify,
+    onMountHandler,
+    pb,
+    symmetricKey,
+    user,
+  } from "$lib";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import RegisterButton from "../RegisterButton.svelte";
@@ -32,6 +40,7 @@
         record.username !== undefined &&
         record.verified !== undefined
       ) {
+        $symmetricKey = await createKey(data.password);
         $user = deserializeUser(record);
         goto("/");
       } else {

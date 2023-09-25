@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import {
     decisionMatrix,
-    clearMatrix,
     errorMessage,
     clone,
     emptyMatrix,
@@ -25,6 +24,7 @@
   import ExportMatrixButton from "./ExportMatrixButton.svelte";
   import ImportMatrixButton from "./ImportMatrixButton.svelte";
   import ChatsButton from "./ChatsButton.svelte";
+  import EncryptSwitch from "./EncryptSwitch.svelte";
 
   let isEditingVisible = true;
 
@@ -111,7 +111,10 @@
     </div>
     <div class="buttons">
       {#if JSON.stringify($decisionMatrix) !== JSON.stringify(emptyMatrix)}
-        <SaveButton />
+        {#if $user !== null}
+          <EncryptSwitch />
+          <SaveButton />
+        {/if}
         <ClearMatrixButton />
         <ExportMatrixButton />
       {/if}
@@ -146,12 +149,17 @@
       </div>
     {/if}
     <br />
-    <button
-      class="button"
-      on:click={() => (isEditingVisible = !isEditingVisible)}
-      >{isEditingVisible ? "Hide" : "Show"} editing area</button
-    >
-    <SaveButton />
+    <div class="buttons">
+      <button
+        class="button"
+        on:click={() => (isEditingVisible = !isEditingVisible)}
+        >{isEditingVisible ? "Hide" : "Show"} editing area</button
+      >
+      {#if $user !== null}
+        <EncryptSwitch />
+        <SaveButton />
+      {/if}
+    </div>
     <hr />
     <div id="results">
       {#if $errorMessage !== ""}

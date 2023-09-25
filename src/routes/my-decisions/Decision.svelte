@@ -1,12 +1,13 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import {
+    type MatrixRow,
     clone,
     decisionMatrix,
     decisionMatrixId,
     pb,
-    type MatrixRow,
     emptyMatrix,
+    shouldEncrypt,
   } from "$lib";
 
   interface Result {
@@ -23,6 +24,7 @@
   const chooseDecisionHandler = () => {
     $decisionMatrix = clone(row.data);
     $decisionMatrixId = row.id;
+    $shouldEncrypt = row.isEncrypted;
     goto("/");
   };
 
@@ -30,7 +32,11 @@
     isLoading = true;
     try {
       if (confirm("Are you sure you want to delete this decision?")) {
-        await pb.collection("matrices").delete(row.id);
+        if (row.isEncrypted) {
+          await pb.collection("matrices_encrypted").delete(row.id);
+        } else {
+          await pb.collection("matrices").delete(row.id);
+        }
         $decisionMatrixId = null;
         $decisionMatrix = clone(emptyMatrix);
         window.location.reload();
@@ -86,5 +92,8 @@
         on:click={deleteButtonHandler}>Delete</button
       >
     </div>
+  </td>
+  <td>
+    {row.isEncrypted ? "✅" : "❌"}
   </td>
 </tr>

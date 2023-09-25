@@ -1,12 +1,13 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { onMountHandler, pb, user } from "$lib";
+  import { onMountHandler, pb, symmetricKey, user } from "$lib";
   import { onMount } from "svelte";
 
   onMount(() => {
     onMountHandler();
     pb.authStore.clear();
     $user = null;
+    $symmetricKey = null;
     goto("/");
   });
 </script>

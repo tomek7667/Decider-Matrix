@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { clone, onMountHandler, pb, user, type MatrixRow } from "$lib";
+  import {
+    clone,
+    onMountHandler,
+    pb,
+    user,
+    type MatrixRow,
+    decryptMatrix,
+  } from "$lib";
   import { goto } from "$app/navigation";
   import GoBackButton from "$lib/GoBackButton.svelte";
   import Decision from "./Decision.svelte";
@@ -15,15 +22,36 @@
       return;
     }
     try {
-      const records = await pb.collection("matrices").getFullList({
+      const unencryptedRecords = await pb.collection("matrices").getFullList({
         sort: "-updated",
       });
-      decisions = records.map((record) => ({
+      const unencryptedDecisions = unencryptedRecords.map((record) => ({
         id: record.id,
         data: clone(record.data),
         updated: new Date(record.updated),
         created: new Date(record.created),
+        isEncrypted: false,
       }));
+
+      const encryptedRecords = await pb
+        .collection("matrices_encrypted")
+        .getFullList({
+          sort: "-updated",
+        });
+
+      const encryptedDecisions = await Promise.all(
+        encryptedRecords.map(async (record) => ({
+          id: record.id,
+          data: await decryptMatrix(record.data),
+          updated: new Date(record.updated),
+          created: new Date(record.created),
+          isEncrypted: true,
+        }))
+      );
+
+      decisions = [...unencryptedDecisions, ...encryptedDecisions].sort(
+        (a, b) => b.updated.getTime() - a.updated.getTime()
+      );
     } catch (err: any) {
       alert(err.message ?? err.toString());
       goto("/");
@@ -50,6 +78,7 @@
             <th>Updated</th>
             <th>Best option</th>
             <th>Actions</th>
+            <th>Is encrypted</th>
           </tr>
         </thead>
         <tfoot>
@@ -59,6 +88,7 @@
             <th>Updated</th>
             <th>Best option</th>
             <th>Actions</th>
+            <th>Is encrypted</th>
           </tr>
         </tfoot>
         <tbody>
