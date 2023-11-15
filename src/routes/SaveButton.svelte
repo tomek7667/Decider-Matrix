@@ -37,20 +37,30 @@
         const record = await pb
           .collection("matrices")
           .update($decisionMatrixId, updateData);
-
-        const { id, data } = record;
+        const { id, data, isShared, user } = record;
         decisionMatrixId.set(id);
-        decisionMatrix.set(data);
+        decisionMatrix.set({
+          ...data,
+          isEncrypted: false,
+          isShared,
+          userId: user,
+        });
       } catch (err: any) {
         if (err.message === `The requested resource wasn't found.`) {
           const createData = {
             data: $decisionMatrix,
             user: $user.id,
+            isShared: false,
           };
           const record = await pb.collection("matrices").create(createData);
-          const { id, data } = record;
+          const { id, data, isShared } = record;
           decisionMatrixId.set(id);
-          decisionMatrix.set(data);
+          decisionMatrix.set({
+            ...data,
+            isEncrypted: false,
+            isShared,
+            userId: $user.id,
+          });
         } else {
           const errorMessage = err.message ?? err.toString();
           alert(`Unencrypted save error: ${errorMessage}`);
@@ -62,9 +72,14 @@
         user: $user.id,
       };
       const record = await pb.collection("matrices").create(createData);
-      const { id, data } = record;
+      const { id, data, isShared } = record;
       decisionMatrixId.set(id);
-      decisionMatrix.set(data);
+      decisionMatrix.set({
+        ...data,
+        isEncrypted: false,
+        isShared,
+        userId: $user.id,
+      });
     }
   };
 
@@ -89,10 +104,15 @@
         const record = await pb
           .collection("matrices_encrypted")
           .update($decisionMatrixId, updateData);
-        const { id, data } = record;
+        const { id, data, isShared } = record;
         const matrix = await decryptMatrix(data);
         decisionMatrixId.set(id);
-        decisionMatrix.set(matrix);
+        decisionMatrix.set({
+          ...matrix,
+          isEncrypted: true,
+          isShared,
+          userId: $user.id,
+        });
       } catch (err: any) {
         if (err.message === `The requested resource wasn't found.`) {
           const createData = {
@@ -102,10 +122,15 @@
           const record = await pb
             .collection("matrices_encrypted")
             .create(createData);
-          const { id, data } = record;
+          const { id, data, isShared } = record;
           const matrix = await decryptMatrix(data);
           decisionMatrixId.set(id);
-          decisionMatrix.set(matrix);
+          decisionMatrix.set({
+            ...matrix,
+            isEncrypted: true,
+            isShared,
+            userId: $user.id,
+          });
         } else {
           const errorMessage = err.message ?? err.toString();
           alert(`Encrypted save error: ${errorMessage}`);
@@ -125,10 +150,15 @@
         .collection("matrices_encrypted")
         .create(createData);
 
-      const { id, data } = record;
+      const { id, data, isShared } = record;
       const matrix = await decryptMatrix(data);
       decisionMatrixId.set(id);
-      decisionMatrix.set(matrix);
+      decisionMatrix.set({
+        ...matrix,
+        isEncrypted: true,
+        isShared,
+        userId: $user.id,
+      });
     }
   };
 </script>

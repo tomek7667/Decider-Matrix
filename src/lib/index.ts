@@ -22,6 +22,9 @@ interface DecisionMatrix {
   name: string;
   criterias: Criteria[];
   items: Item[];
+  isEncrypted?: boolean;
+  isShared: boolean;
+  userId: string;
 }
 
 export interface MatrixRow {
@@ -29,6 +32,7 @@ export interface MatrixRow {
   data: DecisionMatrix;
   updated: Date;
   created: Date;
+  isShared: boolean;
   isEncrypted: boolean;
 }
 
@@ -38,6 +42,9 @@ export const emptyMatrix: DecisionMatrix = {
   name: "An example decision",
   criterias: [],
   items: [],
+  isShared: false,
+  isEncrypted: false,
+  userId: "",
 };
 
 export const decisionMatrix = writable<DecisionMatrix>(clone(emptyMatrix));

@@ -7,6 +7,8 @@
     emptyMatrix,
     user,
     onMountHandler,
+    pb,
+    decisionMatrixId,
   } from "$lib";
   import DecisionTitle from "./DecisionTitle.svelte";
   import CriteriaField from "./CriteriaField.svelte";
@@ -25,6 +27,8 @@
   import ImportMatrixButton from "./ImportMatrixButton.svelte";
   import ChatsButton from "./ChatsButton.svelte";
   import EncryptSwitch from "./EncryptSwitch.svelte";
+  import ShareButton from "./ShareButton.svelte";
+  import CopyShareLinkButton from "./CopyShareLinkButton.svelte";
 
   let isEditingVisible = true;
 
@@ -49,7 +53,25 @@
   };
 
   onMount(() => {
-    onMountHandler();
+    onMountHandler(async () => {
+      const params = window.location.search;
+      const urlParams = new URLSearchParams(params);
+      const share = urlParams.get("share");
+      if (share) {
+        const record = await pb.collection("matrices").getOne(share);
+        if (record) {
+          const { id, data, isShared, user } = record;
+          console.log(record);
+          decisionMatrixId.set(id);
+          decisionMatrix.set({
+            ...data,
+            isShared,
+            isEncrypted: false,
+            userId: user,
+          });
+        }
+      }
+    });
   });
 
   $: (() => {
@@ -111,9 +133,20 @@
     </div>
     <div class="buttons">
       {#if JSON.stringify($decisionMatrix) !== JSON.stringify(emptyMatrix)}
+        <button
+          class="button"
+          on:click={() => (isEditingVisible = !isEditingVisible)}
+          >{isEditingVisible ? "Hide" : "Show"} editing area</button
+        >
         {#if $user !== null}
           <EncryptSwitch />
           <SaveButton />
+          {#if !$decisionMatrix.isEncrypted}
+            <ShareButton />
+            {#if $decisionMatrix.isShared}
+              <CopyShareLinkButton />
+            {/if}
+          {/if}
         {/if}
         <ClearMatrixButton />
         <ExportMatrixButton />
@@ -158,6 +191,12 @@
       {#if $user !== null}
         <EncryptSwitch />
         <SaveButton />
+        {#if !$decisionMatrix.isEncrypted}
+          <ShareButton />
+          {#if $decisionMatrix.isShared}
+            <CopyShareLinkButton />
+          {/if}
+        {/if}
       {/if}
     </div>
     <hr />
