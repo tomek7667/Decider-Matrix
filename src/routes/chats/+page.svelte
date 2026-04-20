@@ -224,7 +224,7 @@
       </div>
       <p class="subtitle">Your chats:</p>
       {#if isLoading}
-        <div class="loader" />
+        <div class="loader"></div>
       {:else if chats.length === 0}
         <p>You don't have any chats yet.</p>
       {:else}

@@ -66,7 +66,7 @@
     <hr />
     <p class="title">Your decisions:</p>
     {#if isLoading}
-      <div class="loader" />
+      <div class="loader"></div>
     {:else if decisions.length === 0}
       <p class="subtitle">You have no decisions yet.</p>
     {:else}

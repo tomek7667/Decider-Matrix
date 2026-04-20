@@ -140,7 +140,7 @@
             {/each}
           </div>
         </div>
-        <div />
+        <div></div>
       </div>
       <input
         type="submit"
