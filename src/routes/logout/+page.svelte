@@ -12,9 +12,15 @@
   });
 </script>
 
-<div class="hero">
-  <div class="hero-body">
-    <p class="title">Logging out...</p>
-    <a href="/">If you are not redirected, click here.</a>
+<main class="logout-page">
+  <div class="logout-box">
+    <div class="brand" style="justify-content: center; margin-bottom: 20px;">
+      <span class="hex"></span>
+      <span>DECIDER</span>
+    </div>
+    <p class="logout-title">Signing out…</p>
+    <p class="logout-sub">
+      Not redirected? <a href="/">Go home</a>
+    </p>
   </div>
-</div>
+</main>

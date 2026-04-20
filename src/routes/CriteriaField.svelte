@@ -4,56 +4,47 @@
   export let criteria: Criteria;
   export let index: number;
 
-  const deleteCriteria = (index: number) => {
+  const deleteCriteria = (i: number) => {
     decisionMatrix.update((matrix) => {
-      matrix.criterias.splice(index, 1);
+      matrix.criterias.splice(i, 1);
       matrix.items.forEach((item) => {
-        item.criterias.splice(index, 1);
+        item.criterias.splice(i, 1);
       });
       return matrix;
     });
   };
 
-  const updateCriteria = (index: number, criteria: Criteria) => {
+  const updateCriteria = (i: number, c: Criteria) => {
     decisionMatrix.update((matrix) => {
-      matrix.criterias[index] = criteria;
+      matrix.criterias[i] = c;
       matrix.items.forEach((item) => {
-        item.criterias[index].name = criteria.name;
-        item.criterias[index].importance = criteria.importance;
+        item.criterias[i].name = c.name;
+        item.criterias[i].importance = c.importance;
       });
       return matrix;
     });
   };
 </script>
 
-<div class="card">
-  <div class="card-content">
-    <div class="columns">
-      <div class="column">
-        <p>Criteria name</p>
-        <input
-          class="input"
-          type="text"
-          placeholder="Criteria name"
-          bind:value={criteria.name}
-          on:input={() => updateCriteria(index, criteria)}
-        />
-      </div>
-      <div class="column">
-        <p>Importance</p>
-        <input
-          class="input"
-          type="number"
-          placeholder="Criteria importance"
-          min="0"
-          bind:value={criteria.importance}
-          on:input={() => updateCriteria(index, criteria)}
-        />
-      </div>
-    </div>
-    <button class="button is-danger" on:click={() => deleteCriteria(index)}
-      >Delete</button
-    >
-  </div>
+<div class="criteria-row">
+  <span class="drag-handle" aria-hidden="true">⠿</span>
+  <input
+    class="inline-input"
+    type="text"
+    placeholder="Criterion name"
+    bind:value={criteria.name}
+    on:input={() => updateCriteria(index, criteria)}
+  />
+  <input
+    class="weight-input"
+    type="number"
+    min="0"
+    max="100"
+    bind:value={criteria.importance}
+    on:input={() => updateCriteria(index, criteria)}
+    aria-label="Importance weight"
+  />
+  <button class="ghost-x" title="Delete criterion" on:click={() => deleteCriteria(index)}>
+    ×
+  </button>
 </div>
-<br />

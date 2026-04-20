@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { onMountHandler, pb, user } from "$lib";
   import { goto } from "$app/navigation";
-  import GoBackButton from "$lib/GoBackButton.svelte";
+  import SubNav from "../../SubNav.svelte";
 
   interface Invitee {
     email: string;
@@ -11,8 +11,7 @@
   }
 
   let invitees: Invitee[] = [];
-
-  let isLoading = true;
+  let isLoading = false;
   let chatName = "";
   let inviteeEmail = "";
 
@@ -20,25 +19,39 @@
     onMountHandler();
     if ($user === null) {
       goto("/login");
-      return;
     }
-    isLoading = false;
   });
 
-  const createButtonHandler = async () => {
+  const invite = async () => {
+    if (!inviteeEmail.trim()) return;
     isLoading = true;
     try {
-      if (chatName === "") {
-        throw new Error("Chat name cannot be empty.");
-      }
-      const participants = invitees.map((i) => i.userId);
-      if (participants.length === 0) {
-        throw new Error("You need to invite at least one person.");
-      }
+      const record = await pb.collection("users_public").getOne(inviteeEmail);
+      if (!record) throw new Error("User not found.");
+      const invitee = { email: record.id, userId: record.userId, username: record.username };
+      if (invitees.some((i) => i.email === invitee.email))
+        throw new Error("User already invited.");
+      if (invitee.userId === $user!.id) throw new Error("You cannot invite yourself.");
+      invitees = [...invitees, invitee];
+      inviteeEmail = "";
+    } catch (err: any) {
+      alert(err.message ?? err.toString());
+    }
+    isLoading = false;
+  };
 
+  const removeInvitee = (email: string) => {
+    invitees = invitees.filter((i) => i.email !== email);
+  };
+
+  const createChat = async () => {
+    isLoading = true;
+    try {
+      if (!chatName.trim()) throw new Error("Chat name cannot be empty.");
+      if (invitees.length === 0) throw new Error("Invite at least one person.");
       await pb.collection("chats").create({
-        name: chatName,
-        participants,
+        name: chatName.trim(),
+        participants: invitees.map((i) => i.userId),
         creator: $user!.id,
       });
       goto("/chats");
@@ -47,108 +60,67 @@
     }
     isLoading = false;
   };
-
-  const inviteButtonHandler = async () => {
-    isLoading = true;
-    try {
-      const record = await pb.collection("users_public").getOne(inviteeEmail);
-      if (record === undefined) {
-        throw new Error("User not found.");
-      }
-      const invitee = {
-        email: record.id,
-        userId: record.userId,
-        username: record.username,
-      };
-
-      if (invitees.some((i) => i.email === invitee.email)) {
-        throw new Error("User already invited.");
-      }
-
-      if (invitee.userId === $user!.id) {
-        throw new Error("You cannot invite yourself.");
-      }
-
-      invitees.push({
-        email: invitee.email,
-        userId: invitee.userId,
-        username: invitee.username,
-      });
-
-      inviteeEmail = "";
-    } catch (err: any) {
-      alert(err.message ?? err.toString());
-    }
-    isLoading = false;
-  };
-
-  const removeInviteeButtonHandler = (email: string) => {
-    invitees = invitees.filter((i) => i.email !== email);
-  };
 </script>
 
-<div class="hero">
-  <div class="hero-body">
-    <GoBackButton />
-    <hr />
-    <p class="title">Create a chat</p>
-    <form method="post" class="form">
-      <div class="field">
-        <p class="label">Chat name</p>
-        <div class="control">
-          <input
-            type="text"
-            class="input"
-            bind:value={chatName}
-            placeholder="Chat name"
-          />
-        </div>
-      </div>
-      <div class="field">
-        <p class="label">Participants</p>
-        <div class="control">
-          <div class="columns">
-            <div class="column">
-              <input
-                type="text"
-                class="input"
-                placeholder="Invitee e-mail"
-                bind:value={inviteeEmail}
-              />
-            </div>
-            <div class="column">
-              <button
-                class="button is-success {isLoading ? 'is-loading' : ''}"
-                on:click|preventDefault={inviteButtonHandler}>Invite</button
-              >
-            </div>
-          </div>
-          <div>
-            {#each invitees as invitee}
-              <div class="columns">
-                <div class="column">
-                  <p>{invitee.username}</p>
-                </div>
-                <div class="column">
-                  <button
-                    class="button is-danger {isLoading ? 'is-loading' : ''}"
-                    on:click|preventDefault={() =>
-                      removeInviteeButtonHandler(invitee.email)}>Remove</button
-                  >
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-        <div></div>
-      </div>
-      <input
-        type="submit"
-        class="button is-primary {isLoading ? 'is-loading' : ''}"
-        value="Create"
-        on:submit|preventDefault={createButtonHandler}
-        on:click|preventDefault={createButtonHandler}
-      />
-    </form>
+<SubNav title="CREATE CHAT" backHref="/chats" />
+
+<div class="form-page">
+  <h1 class="page-heading" style="margin-bottom: 32px;">Create a chat</h1>
+
+  <div class="form-field">
+    <label class="form-label" for="chatName">Chat name</label>
+    <input
+      id="chatName"
+      class="auth-input"
+      type="text"
+      placeholder="e.g. Project sync"
+      bind:value={chatName}
+    />
   </div>
+
+  <div class="form-field">
+    <label class="form-label" for="inviteeEmail">Invite by email</label>
+    <div style="display: flex; gap: 10px;">
+      <input
+        id="inviteeEmail"
+        class="auth-input"
+        type="text"
+        placeholder="friend@example.com"
+        bind:value={inviteeEmail}
+        style="flex: 1;"
+        on:keypress={(e) => e.key === "Enter" && invite()}
+      />
+      <button
+        class="btn btn-ghost"
+        style="height: 42px; flex-shrink: 0;"
+        disabled={isLoading || !inviteeEmail.trim()}
+        on:click={invite}
+      >
+        Invite
+      </button>
+    </div>
+  </div>
+
+  {#if invitees.length > 0}
+    <div class="form-field">
+      <p class="form-section-title">Participants ({invitees.length})</p>
+      <div class="invitees-box">
+        {#each invitees as invitee}
+          <div class="invitee-row">
+            <span class="invitee-name">{invitee.username}</span>
+            <button class="ghost-x" title="Remove" on:click={() => removeInvitee(invitee.email)}>×</button>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  <button
+    class="auth-submit"
+    style="margin-top: 24px;"
+    disabled={isLoading || !chatName.trim() || invitees.length === 0}
+    on:click={createChat}
+  >
+    {isLoading ? "Creating…" : "Create chat"}
+  </button>
 </div>
