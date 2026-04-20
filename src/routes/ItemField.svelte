@@ -3,25 +3,23 @@
 
   export let item: Item;
   export let index: number;
+  export let isTop: boolean = false;
 
-  const updateName = (index: number, item: Item) => {
+  const updateName = (i: number, it: Item) => {
     decisionMatrix.update((matrix) => {
-      matrix.items[index].name = item.name;
+      matrix.items[i].name = it.name;
       return matrix;
     });
   };
 
-  const deleteItem = (index: number) => {
+  const deleteItem = (i: number) => {
     decisionMatrix.update((matrix) => {
-      matrix.items.splice(index, 1);
+      matrix.items.splice(i, 1);
       return matrix;
     });
   };
 
-  const updateCriteriaValue = (
-    criteriaIndex: number,
-    value: number | undefined
-  ) => {
+  const updateCriteriaValue = (criteriaIndex: number, value: number | undefined) => {
     decisionMatrix.update((matrix) => {
       matrix.items[index].criterias[criteriaIndex].value = value;
       return matrix;
@@ -29,50 +27,43 @@
   };
 </script>
 
-<div class="card">
-  <div class="card-content">
+<div class="item-block" class:is-top={isTop}>
+  <div class="item-block-head">
     <input
-      class="input"
+      class="item-name-input"
       type="text"
-      placeholder="Considered option"
+      placeholder="Option name"
       bind:value={item.name}
       on:input={() => updateName(index, item)}
     />
-    <hr />
-    <div>
+    <button class="ghost-x" title="Delete option" on:click={() => deleteItem(index)}>
+      ×
+    </button>
+  </div>
+  <div class="criteria-grid">
+    {#if item.criterias.length === 0}
+      <div class="criteria-name is-empty" style="padding: 6px 0">
+        Add criteria to score this option.
+      </div>
+    {:else}
       {#each item.criterias as criteria, i}
-        <div class="columns">
-          <div class="column criteriaNameBox">
-            <p>
-              {criteria.name.length > 0 ? criteria.name : "Unnamed criteria"}
-            </p>
-          </div>
-          <div class="column criteriaValueBox">
-            <input
-              class="input"
-              type="number"
-              bind:value={criteria.value}
-              on:input={() => updateCriteriaValue(i, criteria.value)}
-            />
-          </div>
+        <div class="criteria-value-row">
+          <span class="criteria-name" class:is-empty={!criteria.name}>
+            {criteria.name || "Unnamed criterion"}
+            <span class="weight-hint">w{criteria.importance}</span>
+          </span>
+          <input
+            class="value-input"
+            class:is-missing={criteria.value === undefined || criteria.value === null}
+            type="number"
+            min="0"
+            max="10"
+            bind:value={criteria.value}
+            placeholder="–"
+            on:input={() => updateCriteriaValue(i, criteria.value)}
+          />
         </div>
       {/each}
-    </div>
-    <hr />
-    <button class="button is-danger" on:click={() => deleteItem(index)}
-      >Delete</button
-    >
+    {/if}
   </div>
 </div>
-<br />
-
-<style>
-  .criteriaNameBox {
-    max-width: 65%;
-    text-wrap: wrap;
-  }
-
-  .criteriaValueBox {
-    max-width: 35%;
-  }
-</style>

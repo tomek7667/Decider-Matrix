@@ -1,85 +1,78 @@
 <script lang="ts">
   import { decisionMatrix, errorMessage } from "$lib";
+  import { flip } from "svelte/animate";
+
   interface Result {
     name: string;
     total: number;
+    hasMissing: boolean;
   }
-  let denominator = 0;
+
   let results: Result[] = [];
+  let highestScore = 0;
 
-  decisionMatrix.subscribe((matrix) => {
-    denominator = matrix.criterias.reduce(
-      (acc, criteria) => acc + criteria.importance,
-      0
-    );
-    results = matrix.items
-      .map((item) => {
-        const { name, criterias } = item;
-        const nominator = criterias.reduce((acc, criteria) => {
-          if (criteria.value === undefined) {
-            $errorMessage = `item ${name} has undefined value for ${criteria.name}`;
-            return acc;
+  $: {
+    const matrix = $decisionMatrix;
+    if (matrix.items.length === 0 || matrix.criterias.length === 0) {
+      results = [];
+      highestScore = 0;
+    } else {
+      const n = matrix.criterias.length;
+      const computed = matrix.items.map((item) => {
+        let sum = 0;
+        let hasMissing = false;
+        item.criterias.forEach((c) => {
+          if (c.value === undefined || c.value === null) {
+            hasMissing = true;
+          } else {
+            sum += (c.value as number) * c.importance;
           }
-          return acc + criteria.value * criteria.importance;
-        }, 0);
-        const total =
-          Math.round((nominator / criterias.length) * 10000) / 10000;
-        return {
-          name,
-          total,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
-  });
-
-  const exportResultsHandler = () => {
-    const csvHeader = `"Item";"Score";"Score / Max score"\n`;
-    const csvResultsRows = results
-      .map(
-        (result) =>
-          `"${result.name}";${result.total};"${
-            Math.round((result.total / highestScore) * 10000) / 100
-          }%"`
-      )
-      .join("\n");
-    const csvContent = `data:text/csv;charset=utf-8,${csvHeader}${csvResultsRows}`;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    const filename = `${$decisionMatrix.name}_${Date.now()}.csv`;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
-  $: highestScore = results[0]?.total ?? 0;
+        });
+        const total = Math.round((sum / n) * 10000) / 10000;
+        return { name: item.name.trim() || "Unnamed option", total, hasMissing };
+      });
+      computed.sort((a, b) => b.total - a.total);
+      results = computed;
+      highestScore = computed[0]?.total ?? 0;
+    }
+  }
 </script>
 
-<p class="subtitle">Results for decision:</p>
-<p class="title">{$decisionMatrix.name}</p>
-<table class="table">
-  <thead>
-    <tr>
-      <th>Place</th>
-      <th>Option</th>
-      <th>Score</th>
-      <th>Score / Max score</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    {#each results as result, index}
-      <tr>
-        <th>{index + 1}</th>
-        <td>{result.name}</td>
-        <td>{result.total}</td>
-        <td>{Math.round((result.total / highestScore) * 10000) / 100}%</td>
-      </tr>
+{#if results.length === 0}
+  <div class="empty-state">
+    <div class="ring"></div>
+    <div class="msg">Results will appear once you add criteria and options.</div>
+  </div>
+{:else}
+  <div class="results-list">
+    {#each results as result, i (result.name)}
+      {@const pct = highestScore > 0 ? (result.total / highestScore) * 100 : 0}
+      {@const isTop = i === 0 && !result.hasMissing}
+      <div class="result-row" class:is-top={isTop} animate:flip={{ duration: 250 }}>
+        <div class="rank"><span class="hash">#</span>{i + 1}</div>
+        <div class="result-main">
+          <div class="result-row-top">
+            <span class="result-name">{result.name}</span>
+            <span class="result-pct"
+              >{(Math.round(pct * 10) / 10).toFixed(1)}%</span
+            >
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-fill" style="width: {pct.toFixed(1)}%"></div>
+          </div>
+        </div>
+        <div class="result-meta">
+          <span class="raw-score-label">score</span>
+          <span class="raw-score">{result.total.toFixed(4)}</span>
+        </div>
+      </div>
     {/each}
-  </tbody>
-</table>
+  </div>
+{/if}
 
-<button class="button is-success" on:click={exportResultsHandler}
-  >Export results</button
->
+{#if $errorMessage}
+  <div class="error-bar">
+    <span class="tag">VALIDATION</span>
+    <span class="msg">{$errorMessage}</span>
+  </div>
+{/if}

@@ -1,20 +1,18 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { clone, onMountHandler, pb, user } from "$lib";
+  import { onMountHandler, pb, user } from "$lib";
   import { goto } from "$app/navigation";
-  import GoBackButton from "$lib/GoBackButton.svelte";
-  import CreateChatButton from "./CreateChatButton.svelte";
-  import { writable } from "svelte/store";
+  import { browser } from "$app/environment";
+  import SubNav from "../SubNav.svelte";
 
   let page = 1;
-  let itemsPerPage = 10;
+  const itemsPerPage = 10;
   let lastPage = 0;
 
   interface Chat {
     created: Date;
     creator: string;
     id: string;
-    image: string;
     name: string;
     participants: string[];
     updated: Date;
@@ -22,7 +20,7 @@
 
   interface Message {
     created: Date;
-    chat: Date;
+    chat: string;
     id: string;
     sender: string;
     senderUsername: string;
@@ -32,28 +30,19 @@
 
   let isLoading = true;
   let chats: Chat[] = [];
-
-  let isSingleChatView = false;
-  let selectedChat = writable<Chat | null>(null);
-  let selectedChatMessages = writable<Message[] | null>(null);
+  let selectedChat: Chat | null = null;
+  let selectedChatMessages: Message[] = [];
   let messageToSend = "";
 
-  const addListeners = async () => {
-    document.addEventListener("keydown", (event) => {
-      if (
-        event.key === "Enter" &&
-        messageToSend !== "" &&
-        isSingleChatView &&
-        $selectedChat
-      ) {
-        sendMessageButtonHandler();
-      }
-    });
+  const keydown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && messageToSend !== "" && selectedChat) {
+      sendMessage();
+    }
   };
 
   onMount(async () => {
     onMountHandler();
-    addListeners();
+    document.addEventListener("keydown", keydown);
     if ($user === null) {
       goto("/login");
       return;
@@ -67,310 +56,228 @@
     isLoading = false;
   });
 
+  onDestroy(() => {
+    if (browser) document.removeEventListener("keydown", keydown);
+    pb.collection("messages").unsubscribe();
+  });
+
   const refreshChats = async () => {
     const result = await pb.collection("chats").getList(page, itemsPerPage, {
       sort: "-updated",
     });
     lastPage = result.totalPages;
-    chats = result.items.map((chat) => ({
-      created: new Date(chat.created),
-      creator: chat.creator,
-      id: chat.id,
-      image: chat.image,
-      name: chat.name,
-      participants: chat.participants,
-      updated: new Date(chat.updated),
+    chats = result.items.map((c) => ({
+      created: new Date(c.created),
+      creator: c.creator,
+      id: c.id,
+      name: c.name,
+      participants: c.participants,
+      updated: new Date(c.updated),
     }));
   };
 
-  const deleteChatButtonHandler = async (id: string) => {
-    isLoading = true;
-    if (confirm("Are you sure you want to delete this chat?")) {
-      try {
-        await pb.collection("chats").delete(id);
-        chats = chats.filter((chat) => chat.id !== id);
-      } catch (err: any) {
-        alert(err.message ?? err.toString());
-      }
-    }
-    isLoading = false;
-  };
-
-  const subscribeToSelectedChat = async () => {
-    pb.collection("messages").subscribe("*", async (e) => {
-      const { record } = e;
-      if (
-        !$selectedChat ||
-        !$selectedChatMessages ||
-        !$user ||
-        record.chat !== $selectedChat.id
-      ) {
-        return;
-      }
-      const { username } = await pb.collection("users").getOne(record.sender, {
-        fields: "id,username",
-      });
-
-      const message: Message = {
-        created: new Date(record.created),
-        chat: record.chat,
-        id: record.id,
-        sender: record.sender,
-        senderUsername: username,
-        text: record.text,
-        updated: new Date(record.updated),
-      };
-      $selectedChatMessages = [message, ...$selectedChatMessages];
-    });
-  };
-
-  const unsubscribeAllChats = async () => {
-    pb.collection("messages").unsubscribe();
-  };
-
-  const openChatButtonHandler = async (id: string) => {
+  const openChat = async (id: string) => {
     isLoading = true;
     try {
-      isSingleChatView = true;
-      let _selectedChat = chats.find((chat) => chat.id === id);
-      if (_selectedChat === undefined) {
-        throw new Error("Chat not found.");
-      }
-      const records = await pb
-        .collection("messages")
-        .getList(page, itemsPerPage, {
-          filter: `chat='${id}'`,
-          sort: "-updated",
-          expand: "sender",
-          fields: "*,expand.sender.username",
-        });
-
-      $selectedChat = _selectedChat;
-      $selectedChatMessages = records.items.map((message) => ({
-        created: new Date(message.created),
-        chat: message.chat,
-        id: message.id,
-        sender: message.sender,
-        senderUsername: message.expand?.sender.username,
-        text: message.text,
-        updated: new Date(message.updated),
+      const chat = chats.find((c) => c.id === id);
+      if (!chat) throw new Error("Chat not found.");
+      const records = await pb.collection("messages").getList(1, 50, {
+        filter: `chat='${id}'`,
+        sort: "-updated",
+        expand: "sender",
+        fields: "*,expand.sender.username",
+      });
+      selectedChat = chat;
+      selectedChatMessages = records.items.map((m) => ({
+        created: new Date(m.created),
+        chat: m.chat,
+        id: m.id,
+        sender: m.sender,
+        senderUsername: m.expand?.sender.username ?? "",
+        text: m.text,
+        updated: new Date(m.updated),
       }));
-      subscribeToSelectedChat();
+      pb.collection("messages").subscribe("*", async (e) => {
+        if (!selectedChat || e.record.chat !== selectedChat.id) return;
+        const { username } = await pb
+          .collection("users")
+          .getOne(e.record.sender, { fields: "id,username" });
+        selectedChatMessages = [
+          {
+            created: new Date(e.record.created),
+            chat: e.record.chat,
+            id: e.record.id,
+            sender: e.record.sender,
+            senderUsername: username,
+            text: e.record.text,
+            updated: new Date(e.record.updated),
+          },
+          ...selectedChatMessages,
+        ];
+      });
     } catch (err: any) {
       alert(err.message ?? err.toString());
-      isSingleChatView = false;
     }
     isLoading = false;
   };
 
-  const previousPageButtonHandler = async () => {
+  const closeChat = async () => {
+    pb.collection("messages").unsubscribe();
+    selectedChat = null;
+    selectedChatMessages = [];
+  };
+
+  const deleteChat = async (id: string) => {
+    if (!confirm("Delete this chat?")) return;
     isLoading = true;
     try {
-      if (page === 1) {
-        return;
-      }
-      page--;
-      await refreshChats();
+      await pb.collection("chats").delete(id);
+      chats = chats.filter((c) => c.id !== id);
+      if (selectedChat?.id === id) closeChat();
     } catch (err: any) {
-      alert(err?.message ?? err.toString());
+      alert(err.message ?? err.toString());
     }
     isLoading = false;
   };
 
-  const nextPageButtonHandler = async () => {
-    isLoading = true;
-    try {
-      if (page === lastPage) {
-        return;
-      }
-      page++;
-      await refreshChats();
-    } catch (err: any) {
-      alert(err?.message ?? err.toString());
-    }
-    isLoading = false;
-  };
-
-  const sendMessageButtonHandler = async () => {
-    isLoading = true;
+  const sendMessage = async () => {
+    if (!messageToSend.trim() || !selectedChat) return;
+    const text = messageToSend;
+    messageToSend = "";
     try {
       await pb.collection("messages").create({
-        text: messageToSend,
-        chat: $selectedChat?.id,
+        text,
+        chat: selectedChat.id,
         sender: $user?.id,
       });
-      messageToSend = "";
     } catch (err: any) {
-      alert(err?.message ?? err.toString());
+      alert(err.message ?? err.toString());
+      messageToSend = text;
     }
+  };
+
+  const prevPage = async () => {
+    if (page <= 1) return;
+    isLoading = true;
+    page--;
+    try { await refreshChats(); } catch (err: any) { alert(err.message ?? err.toString()); }
     isLoading = false;
   };
 
-  onDestroy(async () => {
+  const nextPage = async () => {
+    if (page >= lastPage) return;
     isLoading = true;
-    await unsubscribeAllChats();
+    page++;
+    try { await refreshChats(); } catch (err: any) { alert(err.message ?? err.toString()); }
     isLoading = false;
-  });
+  };
 </script>
 
-<div class="hero">
-  <div class="hero-body">
-    {#if !isSingleChatView || !$selectedChat}
-      <GoBackButton />
-      <hr />
-      <p class="title">Chats</p>
-      <div class="buttons">
-        <CreateChatButton />
+<SubNav title="CHATS" backHref="/" />
+
+<div class="chat-workspace">
+  <!-- Sidebar: chat list -->
+  <div class="chat-sidebar" class:is-visible={!selectedChat}>
+    <div class="chat-sidebar-header">
+      <span class="chat-sidebar-title">Chats</span>
+      <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" on:click={() => goto("/chats/create")}>
+        + New
+      </button>
+    </div>
+
+    {#if isLoading && chats.length === 0}
+      <div class="spin-wrap"><div class="spinner"></div></div>
+    {:else if chats.length === 0}
+      <div class="chat-empty" style="padding: 40px 20px;">
+        <div class="ring" style="width: 32px; height: 32px;"></div>
+        <span>No chats yet.</span>
       </div>
-      <p class="subtitle">Your chats:</p>
-      {#if isLoading}
-        <div class="loader"></div>
-      {:else if chats.length === 0}
-        <p>You don't have any chats yet.</p>
-      {:else}
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Updated</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tfoot>
-            <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Updated</th>
-              <th>Actions</th>
-            </tr>
-          </tfoot>
-          <tbody>
-            {#each chats as chat}
-              <tr>
-                <td>{chat.name}</td>
-                <td>{chat.created.toLocaleString()}</td>
-                <td>{chat.updated.toLocaleString()}</td>
-                <td>
-                  <div class="buttons">
-                    <button
-                      class="button"
-                      on:click={() => openChatButtonHandler(chat.id)}
-                    >
-                      Open
-                    </button>
-                    {#if chat.creator === $user?.id}
-                      <button
-                        class="button is-danger {isLoading && 'is-loading'}"
-                        on:click={() => deleteChatButtonHandler(chat.id)}
-                      >
-                        Delete
-                      </button>
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-        <div class="pagination">
-          <button
-            class="pagination-previous {isLoading ?? 'is-loading'}"
-            on:click={previousPageButtonHandler}
-            disabled={page === 1}>Previous</button
+    {:else}
+      <div class="chat-list">
+        {#each chats as chat}
+          <div
+            class="chat-list-item"
+            class:is-active={selectedChat?.id === chat.id}
+            role="button"
+            tabindex="0"
+            on:click={() => openChat(chat.id)}
+            on:keypress={(e) => e.key === "Enter" && openChat(chat.id)}
           >
-          <button
-            class="pagination-next {isLoading ?? 'is-loading'}"
-            on:click={nextPageButtonHandler}
-            disabled={page === lastPage}>Next page</button
-          >
-        </div>
-      {/if}
-    {:else if isSingleChatView && $selectedChat && $selectedChatMessages}
-      <button
-        class="button"
-        on:click={async () => {
-          isLoading = true;
-          isSingleChatView = false;
-          $selectedChat = null;
-          await unsubscribeAllChats();
-          isLoading = false;
-        }}>Go back</button
-      >
-      <hr />
-      <p class="title">Chat <b>{$selectedChat.name}</b></p>
-      <div class="messages">
-        {#each $selectedChatMessages as message}
-          <div class="content flex message">
-            <div class="message-tags">
-              <strong
-                class="tag is-light {message.sender === $user?.id
-                  ? 'is-danger'
-                  : 'is-success'}"
-                >{message.sender === $user?.id
-                  ? "You"
-                  : message.senderUsername}</strong
-              >
-              <div class="tag is-small">
-                {message.created.toLocaleString()}
-              </div>
+            <div class="chat-list-info">
+              <div class="chat-list-name">{chat.name}</div>
+              <div class="chat-list-date">{chat.updated.toLocaleDateString()}</div>
             </div>
-            <p>{message.text}</p>
+            {#if chat.creator === $user?.id}
+              <div class="chat-list-actions">
+                <button
+                  class="ghost-x"
+                  title="Delete chat"
+                  on:click|stopPropagation={() => deleteChat(chat.id)}
+                >×</button>
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
-      <div class="create-message">
+      {#if lastPage > 1}
+        <div class="pagination-row">
+          <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 12px;" disabled={page === 1} on:click={prevPage}>←</button>
+          <span class="page-info">{page} / {lastPage}</span>
+          <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 12px;" disabled={page === lastPage} on:click={nextPage}>→</button>
+        </div>
+      {/if}
+    {/if}
+  </div>
+
+  <!-- Main: chat view -->
+  <div class="chat-main">
+    {#if selectedChat}
+      <div class="chat-main-header">
+        <button class="chat-main-back" on:click={closeChat} aria-label="Back to list">
+          ←
+        </button>
+        <span class="chat-main-name">{selectedChat.name}</span>
+      </div>
+
+      <div class="chat-messages">
+        {#each selectedChatMessages as message (message.id)}
+          <div
+            class="chat-message"
+            class:is-mine={message.sender === $user?.id}
+          >
+            <div class="chat-message-meta">
+              <span class="chat-sender">
+                {message.sender === $user?.id ? "You" : message.senderUsername}
+              </span>
+              <span>{message.created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            </div>
+            <div class="chat-bubble">{message.text}</div>
+          </div>
+        {/each}
+      </div>
+
+      <div class="send-bar">
         <input
-          class="input new-message-area is-rounded"
+          class="send-input"
           type="text"
-          placeholder="Type your message here..."
-          disabled={isLoading}
+          placeholder="Type a message…"
           bind:value={messageToSend}
+          disabled={isLoading}
         />
         <button
-          class="button is-link is-right send-message-button is-rounded {isLoading &&
-            'is-loading'}"
-          on:click={sendMessageButtonHandler}>Send</button
-        >
+          class="send-btn"
+          on:click={sendMessage}
+          disabled={isLoading || !messageToSend.trim()}
+        >Send</button>
+      </div>
+    {:else}
+      <div class="chat-empty">
+        <div class="ring" style="width: 40px; height: 40px;"></div>
+        <span>Select a chat to start messaging</span>
+        <button class="btn btn-ghost" on:click={() => goto("/chats/create")}>
+          + Create new chat
+        </button>
       </div>
     {/if}
   </div>
 </div>
-
-<style>
-  .messages {
-    display: flex;
-    flex-direction: column-reverse;
-    overflow-y: scroll;
-    top: 0;
-    scroll-behavior: smooth;
-    /* spacing */
-    height: 50vh;
-  }
-
-  .message {
-    margin-bottom: 0.5rem;
-    padding: 0.5rem;
-  }
-
-  .message-tags {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 0.5rem;
-  }
-
-  .create-message {
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: row;
-  }
-
-  .new-message-area {
-    flex-grow: 1;
-    margin-right: 0.5rem;
-  }
-
-  .send-message-button {
-    flex-grow: 0;
-  }
-</style>

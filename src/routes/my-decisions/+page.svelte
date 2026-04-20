@@ -1,15 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    clone,
-    onMountHandler,
-    pb,
-    user,
-    type MatrixRow,
-    decryptMatrix,
-  } from "$lib";
+  import { clone, onMountHandler, pb, user, type MatrixRow, decryptMatrix } from "$lib";
   import { goto } from "$app/navigation";
-  import GoBackButton from "$lib/GoBackButton.svelte";
+  import SubNav from "../SubNav.svelte";
   import Decision from "./Decision.svelte";
 
   let isLoading = true;
@@ -25,26 +18,26 @@
       const unencryptedRecords = await pb.collection("matrices").getFullList({
         sort: "-updated",
       });
-      const unencryptedDecisions = unencryptedRecords.map((record) => ({
+      const unencryptedDecisions: MatrixRow[] = unencryptedRecords.map((record) => ({
         id: record.id,
         data: clone(record.data),
         updated: new Date(record.updated),
         created: new Date(record.created),
+        isShared: record.isShared ?? false,
         isEncrypted: false,
       }));
 
       const encryptedRecords = await pb
         .collection("matrices_encrypted")
-        .getFullList({
-          sort: "-updated",
-        });
+        .getFullList({ sort: "-updated" });
 
-      const encryptedDecisions = await Promise.all(
+      const encryptedDecisions: MatrixRow[] = await Promise.all(
         encryptedRecords.map(async (record) => ({
           id: record.id,
           data: await decryptMatrix(record.data),
           updated: new Date(record.updated),
           created: new Date(record.created),
+          isShared: false,
           isEncrypted: true,
         }))
       );
@@ -60,43 +53,29 @@
   });
 </script>
 
-<div class="hero">
-  <div class="hero-body">
-    <GoBackButton />
-    <hr />
-    <p class="title">Your decisions:</p>
-    {#if isLoading}
-      <div class="loader"></div>
-    {:else if decisions.length === 0}
-      <p class="subtitle">You have no decisions yet.</p>
-    {:else}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Created</th>
-            <th>Updated</th>
-            <th>Best option</th>
-            <th>Actions</th>
-            <th>Is encrypted</th>
-          </tr>
-        </thead>
-        <tfoot>
-          <tr>
-            <th>Name</th>
-            <th>Created</th>
-            <th>Updated</th>
-            <th>Best option</th>
-            <th>Actions</th>
-            <th>Is encrypted</th>
-          </tr>
-        </tfoot>
-        <tbody>
-          {#each decisions as decision}
-            <Decision row={decision} />
-          {/each}
-        </tbody>
-      </table>
-    {/if}
+<SubNav title="MY DECISIONS" backHref="/" />
+
+<div class="page-content">
+  <div class="page-header">
+    <h1 class="page-heading">Your decisions</h1>
+    <button class="btn btn-primary" on:click={() => goto("/")}>
+      + New decision
+    </button>
   </div>
+
+  {#if isLoading}
+    <div class="spin-wrap"><div class="spinner"></div></div>
+  {:else if decisions.length === 0}
+    <div class="empty-state" style="padding: 64px 0">
+      <div class="ring" style="width: 40px; height: 40px; margin-bottom: 20px;"></div>
+      <div class="msg" style="font-size: 15px; margin-bottom: 20px;">No saved decisions yet.</div>
+      <button class="btn btn-primary" on:click={() => goto("/")}>Create your first decision</button>
+    </div>
+  {:else}
+    <div class="decisions-grid">
+      {#each decisions as row}
+        <Decision {row} />
+      {/each}
+    </div>
+  {/if}
 </div>

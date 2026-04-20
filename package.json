@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "engineStrict": true,
-  "engines": {
-    "node": "19.8.1"
-  },
   "scripts": {
     "dev": "vite dev --port 2323",
     "build": "vite build",
